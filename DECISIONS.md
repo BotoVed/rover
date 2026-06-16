@@ -1,6 +1,6 @@
 # Rover — Architecture Decisions Log
 
-**Версия:** 0.4.0
+**Версия:** 0.5.5
 **Формат:** append-only лог решений. Каждая запись имеет номер, дату не указываем (порядок номеров отражает хронологию).
 
 При значительных изменениях архитектуры новые записи **могут отменять** старые. Отменённые помечены как **SUPERSEDED** с ссылкой на заменяющую запись.
@@ -441,6 +441,18 @@ App при `fmt=1` показывает ошибку «Обнови Rover до 0
 
 **Поведение:** Switch немедленно отражает нажатие локально, после PUSH синхронизируется с реальным состоянием сервера.
 
+### 089. Валидация ratchet-файлов при старте (бэк + Android)
+
+**Решение:** Перед инициализацией `register_delivery_identity()` (бэк) и `LXMRouter()` (Android) удалить все 0-байтовые `.ratchets`-файлы.
+
+**Причина:** Если запись ratchet-файла прерывается (crash, power loss, OOM), файл остаётся 0 байт. `RNS/Destination.py:_reload_ratchets` падает с `OSError("Could not read ratchet file contents")`, `register_delivery_identity()` не завершается, интеграция не стартует. На Android `LXMRouter()` зависает/падает с той же ошибкой — app не показывает UI.
+
+**Где именно:**
+- Бэк: `custom_components/rover/rns_transport.py` — перед `register_delivery_identity()`.
+- Android: `app/src/main/java/dev/botoved/rover/service/RnsManager.kt` — перед `LXMRouter()`.
+
+**Поведение:** Удаляются ТОЛЬКО файлы нулевой длины — не трогаем валидные ratchet'ы, сохраняя forward secrecy.
+
 ---
 
 ## Часть 5: Логирование и инструменты тестирования
@@ -517,6 +529,8 @@ custom_components.rover.hnd      — Handlers (dispatch, tp=5/6/8/9)
 | HACS не ставится | — | `manifest.json` version vs git tag; double-nesting в ZIP. |
 | App показывает устройства без состояния | Android logcat | `STATUS broadcast`? `PUSH applied`? Проверить integer ключи top-level. |
 | App ушёл на онбординг без причины | Android logcat | `FORBIDDEN received`? Проверить `is_approved` на бэке. |
+| App не запускается / висит на белом экране | Android logcat | `Rover` логов нет вообще? → `LXMRouter()` висит на 0-байтовом ratchet. Проверить `ls -la lxmf_storage/lxmf/ratchets/` на бэке. |
+| Бэк не стартует после рестарта HA | HA logs (`ha core logs`) | `OSError: Could not read ratchet file contents`? → 0-байтовый `.ratchets` файл. Проверить `ls -la /config/.reticulum/lxmf_storage/lxmf/ratchets/`. |
 
 ---
 
