@@ -138,6 +138,14 @@ loglevel = 5
             self._logger.info("LXMF router started")
             self._router = router
 
+            ratchet_dir = os.path.join(self._config_dir, "lxmf_storage", "lxmf", "ratchets")
+            if os.path.isdir(ratchet_dir):
+                for fname in os.listdir(ratchet_dir):
+                    fpath = os.path.join(ratchet_dir, fname)
+                    if fname.endswith(".ratchets") and os.path.isfile(fpath) and os.path.getsize(fpath) == 0:
+                        os.remove(fpath)
+                        self._logger.warning("Removed 0-byte ratchet file: %s", fname)
+
             dest = router.register_delivery_identity(
                 self._identity,
                 display_name="Rover Hub",
