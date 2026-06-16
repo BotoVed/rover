@@ -70,15 +70,16 @@ class ChannelController(
 
 #### `switchTo(channel: Channel)`
 - Обновляет internal state
-- Detach всех, кроме `channel`
-- Attach `channel` если не был attach
-- Вызывает `onChannelChanged(channel)`
+- Detach всех, кроме `channel` (через `Transport.deregisterInterface()` + `iface.detach()`)
+- Создаёт **новый экземпляр** интерфейса для `channel` (Reticulum interfaces не поддерживают reuse после `detach()` — `ioScope` cancelled)
+- Attach: `iface.start()` → `rns.addInterface(iface)` → `Transport.registerInterface(iface.toRef())`
+- Вызывает `onChannelChanged(channel)``
 
 #### `probeTcp(): Boolean`
-- Прямой `Socket(host, port)` с таймаутом 5с (никакого Reticulum — лёгкая проверка)
+- Прямой `Socket(host, port)` с таймаутом 5с (никакого Reticulum — лёгкая проверка, не оставляет состояния)
 - Если успешен → `close()` и `return true`
 - Если timeout/refused → `return false`
-- Switch после успешного probe создаёт полноценный `TCPClientInterface` и добавляет в RNS
+- Switch после успешного probe создаёт **новый** `TCPClientInterface("rover-tcp", host, port)` → start → addInterface → registerInterface
 
 #### `onNetworkChanged(type: NetworkType, available: Boolean)`
 - Callback от ConnectivityManager
