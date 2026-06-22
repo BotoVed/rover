@@ -1,7 +1,7 @@
 """Rover — Remote Over Radio for Home Assistant."""
 from __future__ import annotations
 
-__version__ = "0.5.6"
+__version__ = "0.5.7"
 
 import logging
 import os

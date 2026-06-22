@@ -106,7 +106,7 @@ class RoverHandlers:
 
     # ---------- tp=8 REQ ----------
     async def handle_req(self, source_hash: bytes | None, fields: dict) -> None:
-        """Send requested config section (m/u/a/d) or STATUS series."""
+        """Send requested config section(s). Accepts single string or list."""
         src_hex = source_hash.hex() if source_hash else None
         if src_hex is None:
             return
@@ -115,40 +115,53 @@ class RoverHandlers:
             await self._transport.send(src_hex, {"tp": TP_FORBIDDEN, "reason": "forbidden"})
             return
 
-        section = fields.get("section")
-        if section not in ("m", "u", "a", "d"):
-            _LOGGER.warning("REQ reject: invalid section=%r", section)
+        raw = fields.get("section")
+        if isinstance(raw, str):
+            sections = [raw]
+        elif isinstance(raw, list):
+            sections = raw
+        else:
+            _LOGGER.warning("REQ reject: invalid section=%r", raw)
             return
 
         hashes = self._registry.get_hashes()
-        if section == "m":
-            data = self._registry.get_meta()
-        elif section == "u":
-            data = self._registry.all_users()
-        elif section == "a":
-            data = self._registry.all_areas()
-        else:
-            data = [
-                {
-                    "id": d["short_id"],
-                    "n": d["name"],
-                    "dt": d["type"],
-                    "a": d.get("area_id"),
-                }
-                for d in self._registry.all_devices()
-                if d.get("enabled", True)
-            ]
+        sent_device = False
+        for section in sections:
+            if section not in ("m", "u", "a", "d"):
+                _LOGGER.warning("REQ skip: unknown section=%r", section)
+                continue
 
-        msg = {"tp": TP_CONFIG, "section": section, "h": hashes[section], "data": data}
-        _LOGGER.info(
-            "CONFIG dst=%s... section=%s items=%s h=%s",
-            src_hex[:8], section,
-            len(data) if isinstance(data, list) else "obj",
-            hashes[section],
-        )
-        await self._transport.send(src_hex, msg)
+            if section == "m":
+                data = self._registry.get_meta()
+            elif section == "u":
+                data = self._registry.all_users()
+            elif section == "a":
+                data = self._registry.all_areas()
+            else:
+                data = [
+                    {
+                        "id": d["short_id"],
+                        "n": d["name"],
+                        "dt": d["type"],
+                        "a": d.get("area_id"),
+                    }
+                    for d in self._registry.all_devices()
+                    if d.get("enabled", True)
+                ]
 
-        if section == "d":
+            msg = {"tp": TP_CONFIG, "section": section, "h": hashes[section], "data": data}
+            _LOGGER.info(
+                "CONFIG dst=%s... section=%s items=%s h=%s",
+                src_hex[:8], section,
+                len(data) if isinstance(data, list) else "obj",
+                hashes[section],
+            )
+            await self._transport.send(src_hex, msg)
+
+            if section == "d":
+                sent_device = True
+
+        if sent_device:
             await self._send_status_snapshot(src_hex)
 
     async def _send_status_snapshot(self, dst_hex: str) -> None:

@@ -1,6 +1,6 @@
 [project]
 name = "rover"
-version = "0.5.6"
+version = "0.5.7"
 description = "Rover — Remote Over Radio для Home Assistant"
 requires-python = ">=3.12"
 dependencies = [
